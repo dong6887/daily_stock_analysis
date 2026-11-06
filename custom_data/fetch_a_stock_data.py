@@ -6,10 +6,8 @@ response = requests.get(url)
 response.raise_for_status()
 skill_content = response.text
 
-# 2. 提取所有 python 代码块
+# 2. 提取所有 python 代码块并执行
 code_blocks = re.findall(r"```python\n(.*?)```", skill_content, re.DOTALL)
-
-# 3. 过滤执行
 exec_globals = {}
 for code in code_blocks:
     safe_lines = []
@@ -28,31 +26,29 @@ market_data = {}
 try:
     index_funcs = [k for k in exec_globals.keys() if "index" in k.lower() and callable(exec_globals[k])]
     if index_funcs:
-        print(f"找到指数函数: {index_funcs[0]}")
         indices_df = exec_globals[index_funcs[0]](["sh", "sz", "cy"])
         market_data["indices"] = indices_df.to_dict(orient="records") if isinstance(indices_df, pd.DataFrame) else indices_df
 except Exception as e:
     market_data["index_error"] = str(e)
 
-# ==================== 抓取涨跌家数（重点硬刚） ====================
+# ==================== 抓取涨跌家数（硬编码东方财富API） ====================
 try:
-    # 自动搜索名字里带有 breadth(宽度), advance(上涨), up_down(涨跌) 的函数
-    breadth_funcs = [k for k in exec_globals.keys() if any(word in k.lower() for word in ["breadth", "advance", "up_down", "updown"]) and callable(exec_globals[k])]
-    print(f"找到涨跌家数相关函数: {breadth_funcs}")
+    print("正在直接请求东方财富获取全市场涨跌家数...")
+    # 东方财富全市场行情API，f104=上涨家数, f105=下跌家数, f106=平盘家数
+    em_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f104,f105,f106"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    resp = requests.get(em_url, headers=headers, timeout=10).json()
     
-    if breadth_funcs:
-        target_breadth_func = breadth_funcs[0]
-        print(f"正在尝试调用涨跌家数函数: {target_breadth_func}")
-        # 尝试调用
-        breadth_data = exec_globals[target_breadth_func]()
-        market_data["breadth"] = breadth_data.to_dict(orient="records") if isinstance(breadth_data, pd.DataFrame) else breadth_data
-    else:
-        # 如果没找到特定的名字，把所有可用的函数名打出来，方便我们下一步排查
-        all_public_funcs = [k for k in exec_globals.keys() if not k.startswith("__") and callable(exec_globals[k])]
-        print(f"未能精确匹配，当前库中所有可用函数有: {all_public_funcs}")
+    if resp and resp.get("data"):
+        market_data["breadth"] = {
+            "up_count": resp["data"]["f104"],
+            "down_count": resp["data"]["f105"],
+            "flat_count": resp["data"]["f106"]
+        }
+        print(f"成功获取涨跌家数: {market_data['breadth']}")
 except Exception as e:
     market_data["breadth_error"] = str(e)
-    print(f"抓取涨跌家数报错: {e}")
+    print(f"获取涨跌家数失败: {e}")
 
 # ==================== 保存结果 ====================
 output_path = os.path.join(os.path.dirname(__file__), "market_data.json")
