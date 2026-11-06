@@ -59,12 +59,7 @@ jobs:
       - name: 创建必要目录
         run: |
           mkdir -p data logs reports
-      
-      - name: 安装 a-stock-data 依赖
-        run: pip install mootdx requests pandas stockstats
-
-      - name: 获取补充大盘数据
-        run: python custom_data/fetch_a_stock_data.py
+            
       - name: 执行股票分析
         env:
           # ==========================================
