@@ -1,9 +1,10 @@
 import os, json, re, requests, pandas as pd
 
-# 1. 从 SKILL.md 中提取并执行内嵌的 Python 代码
-skill_path = os.path.join(os.path.dirname(__file__), "SKILL.md")
-with open(skill_path, "r", encoding="utf-8") as f:
-    skill_content = f.read()
+# 1. 直接从网上拉取最新的 SKILL.md 内容
+url = "https://raw.githubusercontent.com/simonlin1212/a-stock-data/main/SKILL.md"
+response = requests.get(url)
+response.raise_for_status()
+skill_content = response.text
 
 # 匹配所有 ```python ... ``` 代码块
 code_blocks = re.findall(r"```python\n(.*?)```", skill_content, re.DOTALL)
